@@ -7,8 +7,20 @@
 
 ## Prior art
 
+### Minimal Schemes
+
 https://github.com/johnwcowan/r7rs-work/blob/master/BottomScheme.md[Bottom Scheme]
 
 GNU Mes (Maxwell's equations of software)
 
 Mini-Scheme, TinyScheme, S7
+
+### Build systems
+
+https://github.com/rotty/conjure[Conjure] -- A make(1) replacement in Scheme (R6RS version)
+
+GNU Autotools (autoconf, automake, libtool)
+
+SCons
+
+CMake
