@@ -23,3 +23,8 @@
 * Ninja (a low-level backend for high-level build systems)
 * ASDF (Common Lisp)
 * Boot (Clojure)
+
+### Configure scripts and portability knowledge
+
+* https://github.com/autoconf-archive/autoconf-archive[Autoconf archive]
+* https://sourceforge.net/p/predef/wiki/Home/[Pre-defined C/C++ Compiler Macros]
