@@ -1,0 +1,9 @@
+# Boot Scheme (WIP)
+
+## Prior art
+
+https://github.com/johnwcowan/r7rs-work/blob/master/BottomScheme.md[Bottom Scheme]
+
+GNU Mes (Maxwell's equations of software)
+
+Mini-Scheme, TinyScheme, S7

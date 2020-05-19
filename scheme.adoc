@@ -1,0 +1,315 @@
+# Boot Scheme
+
+R7RS-small subset + extensions.
+
+Everything subject to change.
+
+## Features
+
+* Pairs (immutable)
+* Lists, including dotted and circular lists
+* Symbols (all in one global namespace)
+* Exact integers (both fixnums and bignums)
+* Strings (immutable)
+* Bytevectors (mutable?)
+* Non-restartable exceptions (raise/guard)
+* Textual and binary ports
+* String and bytevector ports
+* Parameter objects
+* Quasiquote
+* cond-expand
+
+## Missing features
+
+* Vectors
+* Hash tables
+* Macros
+* Library/module system
+* Character objects
+* Keyword objects
+* Keyword arguments
+* Lazy evaluation (delay/force)
+* Full continuations (call/cc)
+* Inexact numbers
+* Ratios
+* Real numbers
+* Complex numbers
+* Record types
+* Multiple values
+* case-lambda
+* `ready?` procedures for ports
+
+## From (scheme base)
+
+### Metalevel
+
+cond-expand
+features
+load
+
+### Control and boolean
+
+and
+apply
+begin
+boolean=?
+case
+cond
+define
+dynamic-wind
+else
+eof-object
+eq?
+equal?
+eqv?
+error
+error-object-irritants
+error-object-message
+guard
+if
+lambda
+let
+let*
+letrec
+letrec*
+make-parameter
+not
+or
+parameterize
+quasiquote
+quote
+raise
+set!
+syntax-error
+unless
+unquote
+unquote-splicing
+when
+with-exception-handler
+
+### Predicates
+
+binary-port?
+boolean?
+bytevector?
+eof-object?
+error-object?
+even?
+exact-integer?
+exact?
+input-port-open?
+input-port?
+integer?
+list?
+negative?
+null?
+number?
+odd?
+output-port-open?
+output-port?
+pair?
+port?
+positive?
+procedure?
+read-error?
+string?
+symbol?
+textual-port?
+zero?
+
+### Pairs
+
+cons
+
+car
+cdr
+
+caar
+cadr
+cdar
+cddr
+
+### Lists
+
+append
+for-each
+length
+list
+list-copy
+list-ref
+list-tail
+make-list
+map
+member
+memq
+memv
+reverse
+
+#### Nonstandard
+
+filter
+
+### Association lists
+
+assoc
+assq
+assv
+
+### Numbers
+
+*
++
+-
+/
+<
+<=
+=
+=>
+>
+>=
+abs
+ceiling
+exact
+exact-integer-sqrt
+expt
+floor
+floor-quotient
+floor-remainder
+floor/
+max
+min
+modulo
+number->string
+quotient
+remainder
+round
+square
+truncate
+truncate-quotient
+truncate-remainder
+truncate/
+
+### Symbols
+
+symbol->string
+symbol=?
+
+### Strings
+
+make-string
+list->string
+string
+string->list
+string->number
+string->symbol
+string->utf8
+string-append
+string-copy
+string-for-each
+string-length
+string-map
+string-ref
+string<=?
+string<?
+string=?
+string>=?
+string>?
+utf8->string
+
+string-ci<=?
+string-ci<?
+string-ci=?
+string-ci>=?
+string-ci>?
+string-downcase
+string-foldcase
+string-upcase
+
+### Bytevectors
+
+make-bytevector
+bytevector
+bytevector-append
+bytevector-copy
+bytevector-copy!
+bytevector-length
+bytevector-u8-ref
+bytevector-u8-set!
+
+### Ports
+
+call-with-port
+close-input-port
+close-output-port
+close-port
+current-error-port
+current-input-port
+current-output-port
+flush-output-port
+newline
+peek-u8
+read-bytevector
+read-line
+read-string
+read-u8
+write-bytevector
+write-string
+write-u8
+
+### String and bytevector ports
+
+get-output-bytevector
+get-output-string
+open-input-bytevector
+open-input-string
+open-output-bytevector
+open-output-string
+
+### S-expressions
+
+display
+read
+write
+write-shared
+write-simple
+
+### OS files
+
+file-error?
+
+#### Non-standard
+
+create-directory
+read-symlink
+rename-file
+delete-directory
+set-file-mode
+set-file-timespecs
+
+file-info
+file-info?
+file-info:mode
+file-info:size
+file-info:mtime
+
+file-info-directory?
+file-info-fifo?
+file-info-symlink?
+file-info-regular?
+
+directory-files
+
+real-path
+
+### OS environment
+
+command-line
+exit
+get-environment-variable
+
+#### Non-standard
+
+command-args
+command-name
+script-directory
+script-file
