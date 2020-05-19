@@ -3,7 +3,7 @@
 ## Repo layout
 
 * `scheme/` -- Boot Scheme language specification and implementations
-* `system/` -- Configuration and build system written in Build Scheme
+* `system/` -- Configuration and build system written in Boot Scheme
 
 ## Prior art
 
