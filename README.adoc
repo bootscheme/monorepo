@@ -19,3 +19,7 @@
 * GNU Autotools (autoconf, automake, libtool)
 * SCons
 * CMake
+* Meson
+* Ninja (a low-level backend for high-level build systems)
+* ASDF (Common Lisp)
+* Boot (Clojure)
