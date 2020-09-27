@@ -9,6 +9,11 @@
        (if (match? (car lis)) (car lis)
            (find match? (cdr lis)))))
 
+(define (find-value get-value lis)
+  (and (not (null? lis))
+       (let ((value (get-value (car lis))))
+         (or value (find-value get-value (cdr lis))))))
+
 (define (fold combine state lis)
   (let loop ((state state) (lis lis))
     (if (null? lis) state (loop (combine state (car lis)) (cdr lis)))))
@@ -257,15 +262,50 @@
 (define progname "Gambit")
 (define progvers "4.9.3")
 
-(define (check-gnu-make)
-  (let loop ((candidates '("gmake" "make")))
-    (and (not (null? candidates))
-         (let ((command (car candidates)))
-           (let ((version (parse-version-line-from-command
-                           "GNU Make " command "--version")))
-             (if version
-                 (cons command version)
-                 (loop (cdr candidates))))))))
+(define (make-check what help written thunk)
+  (list what help written thunk))
+
+(define (check-what    check) (list-ref check 0))
+(define (check-help    check) (list-ref check 1))
+(define (check-written check) (list-ref check 2))
+(define (check-thunk   check) (list-ref check 3))
+
+(define (run-check check)
+  (write-string "checking ")
+  (write-string (check-what check))
+  (write-string "... ")
+  (flush-output-port (current-output-port))
+  (let ((value ((check-thunk check))))
+    (write-string ((check-written check) value))
+    (newline)
+    value))
+
+(define (find-program-and-version prefix commands version-flag)
+  (find-value (lambda (command)
+                (let ((version (parse-version-line-from-command
+                                prefix command version-flag)))
+                  (and version (cons command version))))
+              commands))
+
+(define (car-or-not-found value) (if value (car value) "not found"))
+
+(define check-for-gnu-make
+  (make-check
+   "for GNU make"
+   "Search all the common names for GNU make"
+   car-or-not-found
+   (lambda () (find-program-and-version "GNU Make "
+                                        '("gmake" "make")
+                                        "--version"))))
+
+(define check-for-gcc
+  (make-check
+   "for gcc"
+   "Search for the GNU Compiler Collection"
+   car-or-not-found
+   (lambda () (find-program-and-version "gcc-10 "
+                                        '("cc" "gcc" "gcc-10")
+                                        "--version"))))
 
 (define (main)
   (let ((state (parse-args (command-args))))
@@ -274,10 +314,8 @@
           ((assoc 'version state)
            (version))
           (else
-           (writeln (command-name))
-           (writeln (command-args))
-           (writeln state)
-           (writeln (check-gnu-make))
+           (run-check check-for-gnu-make)
+           (run-check check-for-gcc)
            (write-makefile)
            (write-config-status)))))
 

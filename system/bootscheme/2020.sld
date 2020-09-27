@@ -27,6 +27,7 @@
           eqv?
           error
           exit
+          flush-output-port
           for-each
           if
           lambda
@@ -46,6 +47,7 @@
           parameterize
           quote
           reverse
+          set!
           string
           string-append
           string-length
@@ -102,7 +104,8 @@
                        (open-process
                         (list (string->keyword "path") command
                               (string->keyword "arguments") args
-                              (string->keyword "stdout-redirection") #t))))))
+                              (string->keyword "stdout-redirection") #t
+                              (string->keyword "stderr-redirection") #t))))))
            (and p
                 (let ((line (read-line p)))
                   (close-port p)
