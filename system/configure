@@ -1,0 +1,259 @@
+(import (bootscheme))
+
+;; Utilities
+
+(define (find match? lis)
+  (and (not (null? lis))
+       (if (match? (car lis)) (car lis)
+           (find match? (cdr lis)))))
+
+(define (string-index s char)
+  (let ((n (string-length s)))
+    (let loop ((i 0))
+      (cond ((= i n) #f)
+            ((char=? char (string-ref s i)) i)
+            (else (loop (+ i 1)))))))
+
+(define (string-index-right s char start)
+  (let loop ((i (- (string-length s) 1)))
+    (cond ((< i start) #f)
+          ((char=? char (string-ref s 1)) i)
+          (else (loop (- i 1))))))
+
+(define (string-join strings delimiter)
+  (if (null? strings) ""
+      (let loop ((acc (car strings)) (strings (cdr strings)))
+        (if (null? strings) acc
+            (loop (string-append acc delimiter (car strings))
+                  (cdr strings))))))
+
+(define (string-prefix? fix s)
+  (and (>= (string-length s) (string-length fix))
+       (string=? fix (substring s 0 (string-length fix)))))
+
+(define (acons key val alist)
+  (cons (cons key val) alist))
+
+(define (disp . xs)
+  (for-each display xs)
+  (newline))
+
+(define (parse-version-line-from-command version-prefix command . args)
+  (let ((line (apply first-line-from-command command args)))
+    (and line
+         (string-prefix? version-prefix line)
+         (substring line
+                    (string-length version-prefix)
+                    (string-length line)))))
+
+;; Subroutines
+
+(define (fatal message)
+  (write-string message (current-error-port))
+  (newline (current-error-port))
+  (exit #f))
+
+(define (version)
+  (disp "version")
+  (exit #t))
+
+(define (generic-usage which-exit which-port)
+  (parameterize ((current-output-port which-port))
+    (disp "`configure' configures " progname " " progvers
+          " to adapt to many kinds of systems.")
+    (disp)
+    (disp "Usage: ./configure [OPTION]... [VAR=VALUE]...")
+    (disp)
+    (disp "To assign environment variables (e.g., CC, CFLAGS...), specify them as")
+    (disp "VAR=VALUE.  See below for descriptions of some of the useful variables.")
+    (disp)
+    (disp "Defaults for the options are specified in brackets.")
+    (disp)
+    (disp "Configuration:")
+    (disp "-h, --help")
+    (exit which-exit)))
+
+(define (usage) (generic-usage #f (current-error-port)))
+(define (successful-usage) (generic-usage #t (current-output-port)))
+
+;; Option parsing
+
+(define available-options
+  '(("-h")
+    ("-V")
+    ("--help")
+    ("--version")
+
+    ;;
+
+    ("--bindir"         "directory")
+    ("--datadir"        "directory")
+    ("--datarootdir"    "directory")
+    ("--docdir"         "directory")
+    ("--dvidir"         "directory")
+    ("--exec-prefix"    "directory")
+    ("--htmldir"        "directory")
+    ("--includedir"     "directory")
+    ("--infodir"        "directory")
+    ("--libdir"         "directory")
+    ("--libexecdir"     "directory")
+    ("--localedir"      "directory")
+    ("--localstatedir"  "directory")
+    ("--mandir"         "directory")
+    ("--oldincludedir"  "directory")
+    ("--pdfdir"         "directory")
+    ("--prefix"         "directory")
+    ("--psdir"          "directory")
+    ("--runstatedir"    "directory")
+    ("--sbindir"        "directory")
+    ("--sharedstatedir" "directory")
+    ("--sysconfdir"     "directory")
+
+    ;;
+
+    ("--srcdir"         "directory")))
+
+(define (option-by-name name)
+  (or (assoc name available-options)
+      (error "No such option" name)))
+
+(define (option-argument option)
+  (and (not (null? (cdr option)))
+       (cadr option)))
+
+(define (how-many-dashes s)
+  (let ((n (min 3 (string-length s))))
+    (let loop ((i 0))
+      (if (and (< i n) (char=? #\- (string-ref s i)))
+          (loop (+ i 1))
+          i))))
+
+(define (handle state name value)
+  (cond ((not name)
+         (error "Non-option args not supported" value))
+        ((equal? name "-h")
+         (acons 'help #t state))
+        ((equal? name "-V")
+         (acons 'version #t state))
+        ((equal? name "--help")
+         (acons 'help #t state))
+        ((equal? name "--version")
+         (acons 'version #t state))
+        ((equal? name "--prefix")
+         (acons 'prefix value state))
+        ((equal? name "--srcdir")
+         (acons 'srcdir value state))
+        (else
+         (error "Unknown option"))))
+
+(define (parse-args args)
+  (let loop ((state '()) (args args))
+    (if (null? args) state
+        (let ((arg (car args)))
+          (case (how-many-dashes arg)
+            ((0) (loop (handle state #f arg) (cdr args)))
+            ((1) (if (= 1 (string-length arg))
+                     (loop (handle state #f arg) (cdr args))
+                     (let loop-singles ((state state) (args (cdr args)) (i 1))
+                       (if (= i (string-length arg))
+                           (loop state args)
+                           (loop-singles (handle state
+                                                 (string #\- (string-ref arg i))
+                                                 (car args))
+                                         (cdr args)
+                                         (+ i 1))))))
+            ((2) (if (= 2 (string-length arg))
+                     (let loop-non-options ((state state) (args (cdr args)))
+                       (if (null? args) state
+                           (loop-non-options (handle state #f (car args))
+                                             (cdr args))))
+                     (let* ((pivot (string-index arg #\=))
+                            (name (substring arg 0 (or pivot (string-length arg))))
+                            (option (option-by-name name))
+                            (argument (option-argument option))
+                            (imm-val (and pivot (substring arg
+                                                           (+ pivot 1)
+                                                           (string-length arg))))
+                            (value (if (not argument)
+                                       (if imm-val
+                                           (error "No argument expected")
+                                           #f)
+                                       (if imm-val
+                                           imm-val
+                                           (if (null? (cdr args))
+                                               (error "No argument given")
+                                               (cadr args))))))
+                       (loop (handle state name value)
+                             (if (or imm-val (not argument))
+                                 (cdr args)
+                                 (cddr args))))))
+            (else (error "Too many dashes")))))))
+
+;;
+
+(define (write-config-status)
+  (with-output-to-file "config.status"
+    (lambda ()
+      (disp "#! /bin/sh")
+      (disp "cd \"$(dirname \"$0\")\"")
+      (disp "exec ./configure --foo"))))
+
+(define (write-makefile)
+  (with-output-to-file "Makefile"
+    (lambda ()
+      (let ((phony-targets
+             '("all"
+               "install"
+               "install-html"
+               "install-dvi"
+               "install-pdf"
+               "install-ps"
+               "uninstall"
+               "install-strip"
+               "clean"
+               "distclean"
+               "mostlyclean"
+               "maintainer-clean"
+               "TAGS"
+               "info"
+               "dvi"
+               "html"
+               "pdf"
+               "ps"
+               "dist"
+               "check"
+               "installcheck"
+               "installdirs")))
+        (disp ".PHONY: " (string-join phony-targets " "))))))
+
+(define (find-srcdir)
+  (or (find dir-contains-sources?
+            (let ((dirname (option-value srcdir)))
+              (if dirname (list dirname) (list "." ".."))))
+      (error "cannot find the sources")))
+
+(define progname "Gambit")
+(define progvers "4.9.3")
+
+(define (check-gnu-make)
+  (let loop ((candidates '("gmake" "make")))
+    (and (not (null? candidates))
+         (let ((command (car candidates)))
+           (let ((version (parse-version-line-from-command
+                           "GNU Make " command "--version")))
+             (if version
+                 (cons command version)
+                 (loop (cdr candidates))))))))
+
+(let ((state (parse-args (command-args))))
+  (cond ((assoc 'help state)
+         (successful-usage))
+        ((assoc 'version state)
+         (version))
+        (else
+         (disp (command-name))
+         (disp (command-args))
+         (disp state)
+         (disp (check-gnu-make))
+         (write-makefile)
+         (write-config-status))))
