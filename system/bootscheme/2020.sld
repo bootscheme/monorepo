@@ -7,8 +7,10 @@
 
    ;; R7RS-small alphanumeric
    and
+   append
    apply
    assoc
+   begin
    caar
    cadr
    car
@@ -16,6 +18,7 @@
    cdar
    cddr
    cdr
+   char<=?
    char=?
    command-line
    cond
@@ -39,6 +42,7 @@
    let
    let*
    list
+   list-copy
    list-ref
    make-string
    map
@@ -48,15 +52,22 @@
    newline
    not
    null?
+   number->string
    or
    parameterize
    quote
    reverse
    set!
+   set-car! ; TODO: Should BootScheme support mutable pairs or not?
+   set-cdr! ; TODO
    string
+   string->number
    string-append
+   string-downcase
    string-length
+   string-map
    string-ref
+   string-upcase
    string=?
    string?
    substring
@@ -113,9 +124,7 @@
      (import (chibi process))
      (begin
        (define (all-output-from-command command . args)
-         (process->string (cons command args)))
-       (define (first-line-from-command command . args)
-         (string-first-line (apply all-output-from-command command args)))))
+         (process->string (cons command args)))))
     (gambit
      (import (gambit))
      (begin
@@ -138,9 +147,7 @@
                               (string->keyword "stderr-redirection") #t))))))
            (let ((s (read-whole-string p)))
              (close-port p)
-             (and (equal? 0 (process-status p)) s))))
-       (define (first-line-from-command command . args)
-         (string-first-line (apply all-output-from-command command args)))))
+             (and (equal? 0 (process-status p)) s))))))
     (gauche
      (import (srfi 13) (srfi 193))
      (import (gauche base) (gauche process))
@@ -150,6 +157,11 @@
                                (make-keyword 'redirects)
                                `((> 1 out) (> 2 ,(make-keyword 'null))))))
            (and (process-wait p)
-                (port->string (process-output p 'out)))))
-       (define (first-line-from-command command . args)
-         (string-first-line (apply all-output-from-command command args)))))))
+                (eqv? 0 (process-exit-status p))
+                (port->string (process-output p 'out))))))))
+
+  (begin
+
+    (define (first-line-from-command command . args)
+      (let ((output (apply all-output-from-command command args)))
+        (and output (string-first-line output))))))

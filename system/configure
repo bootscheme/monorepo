@@ -50,6 +50,21 @@
 (define (acons key val alist)
   (cons (cons key val) alist))
 
+(define (assoc-set! alist key val)
+  (let ((pair (assoc key alist)))
+    (if pair
+        (set-cdr! pair val)
+        (set! alist (cons (cons key val) alist)))
+    alist))
+
+(define (assoc-add! alist key . elements)
+  (let ((elements (list-copy elements))
+        (pair (assoc key alist)))
+    (if pair
+        (set-cdr! pair (append (cdr pair) elements))
+        (set! alist (cons (cons key elements) alist)))
+    alist))
+
 (define (writeln x)
   (write x)
   (newline))
@@ -267,90 +282,250 @@
         (cons 'cflags (get-environment-variable "CFLAGS"))
         (cons 'ldflags (get-environment-variable "LDFLAGS"))))
 
-(define (make-check what help written thunk)
-  (list what help written thunk))
+(define (make-check what help thunk)
+  (list what help thunk))
 
-(define (check-what    check) (list-ref check 0))
-(define (check-help    check) (list-ref check 1))
-(define (check-written check) (list-ref check 2))
-(define (check-thunk   check) (list-ref check 3))
+(define (check-what  check) (list-ref check 0))
+(define (check-help  check) (list-ref check 1))
+(define (check-thunk check) (list-ref check 2))
 
-(define (run-check check)
+(define (run-check state check)
   (write-string "checking ")
   (write-string (check-what check))
   (write-string "... ")
   (flush-output-port (current-output-port))
-  (let ((value ((check-thunk check))))
-    (write-string ((check-written check) value))
+  (let ((state ((check-thunk check) state)))
     (newline)
-    value))
+    state))
 
-(define (find-program-and-version version-flag prefix commands)
-  (find-value (lambda (command)
-                (let ((version (parse-version-line-from-command
-                                prefix command version-flag)))
-                  (and version (cons command version))))
-              commands))
+(define (find-program-and-version result-scheme-name
+                                  version-flag prefix commands)
+  (lambda (state)
+    (let ((p-and-v (find-value (lambda (command)
+                                 (let ((version (parse-version-line-from-command
+                                                 prefix command version-flag)))
+                                   (and version (cons command version))))
+                               commands)))
+      (set! state (assoc-set! state result-scheme-name p-and-v))
+      (write-string (if p-and-v (car p-and-v) "not found"))
+      state)))
 
 (define (command-and-versions command versions)
   (cons command
         (map (lambda (version) (string-append command "-" version))
              versions)))
 
-(define (or-not-found value) (or value "not found"))
-(define (car-or-not-found value) (if value (car value) "not found"))
-(define (boolean-as-yes-or-no value) (if value "yes" "no"))
+(define (run-c-preprocessor . lines)
+  (let ((temp-c-name "configure-temp.c"))
+    (with-output-to-file temp-c-name
+      (lambda () (for-each write-line lines)))
+    (all-output-from-command "cc" "-E" temp-c-name)))
+
+(define (run-c-program . lines)
+  (let* ((temp-exe-name "configure-temp")
+         (temp-c-name (string-append temp-exe-name ".c")))
+    (with-output-to-file temp-c-name
+      (lambda () (for-each write-line lines)))
+    (and (all-output-from-command "cc" "-o" temp-exe-name temp-c-name)
+         (let ((out (first-line-from-command
+                     (string-append "./" temp-exe-name))))
+           (and out (string->number out))))))
+
+(define (c-define-boolean! state
+                           result-scheme-name
+                           result-c-name
+                           result-c-comment
+                           result)
+  (write-string (if result "yes" "no"))
+  (set! state
+    (assoc-set! state result-scheme-name (not (not result))))
+  (set! state
+    (assoc-add! state 'config-h-lines
+                ""
+                (string-append "/* " result-c-comment " */")
+                (if result
+                    (string-append "#define " result-c-name " 1")
+                    (string-append "/* #undef " result-c-name " */"))))
+  state)
+
+(define (c-define-integer! state
+                           result-scheme-name
+                           result-c-name
+                           result-c-comment
+                           result
+                           failure-message)
+  (write-string (if result (number->string result) failure-message))
+  (set! state
+    (assoc-set! state result-scheme-name result))
+  (set! state
+    (assoc-add! state 'config-h-lines
+                ""
+                (string-append "/* " result-c-comment " */")
+                (if result
+                    (string-append "#define " result-c-name " "
+                                   (number->string result))
+                    (string-append "/* #undef " result-c-name " */"))))
+  state)
+
+(define (c-slug s)
+  (string-map (lambda (c)
+                (if (or (char<=? #\0 c #\9)
+                        (char<=? #\A c #\Z)
+                        (char<=? #\a c #\z))
+                    c #\_))
+              s))
+
+(define (scheme-slug s)
+  (string-map (lambda (c)
+                (if (or (char<=? #\0 c #\9)
+                        (char<=? #\A c #\Z)
+                        (char<=? #\a c #\z)
+                        (member c '(#\- #\? #\!)))
+                    c #\_))
+              s))
+
+(define (make-check-for-c-sizeof type . headers)
+  (let* ((what (string-append "size of " type))
+         (result-c-comment
+          (string-append
+           "The size of `" type "', as computed by sizeof."))
+         (result-c-name
+          (c-slug (string-append "SIZEOF_" (string-upcase type))))
+         (result-scheme-name
+          (scheme-slug (string-append "sizeof-" type))))
+    (make-check
+     what
+     result-c-comment  ; TODO: Better help.
+     (lambda (state)
+       (c-define-integer!
+        state
+        result-scheme-name
+        result-c-name
+        result-c-comment
+        (apply
+         run-c-program
+         (append
+          (map (lambda (header) (string-append "#include <" header ">"))
+               (cons "stdio.h" headers))
+          (list
+           "int main(void) {"
+           "  if (printf(\"%d\\n\", (int)(sizeof(" type "))) < 0) return 1;"
+           "  return 0;"
+           "}")))
+        (string-append "cannot determine a size for " type))))))
+
+(define (make-check-for-c-header in-angle-brackets)
+  (let* ((what (string-append "for " in-angle-brackets))
+         (result-c-comment
+          (string-append
+           "Define to 1 if you have the"
+           " <" in-angle-brackets "> header file."))
+         (result-c-name
+          (c-slug (string-append "HAVE_" (string-upcase in-angle-brackets))))
+         (result-scheme-name
+          (scheme-slug (string-append "have-" in-angle-brackets "?"))))
+    (make-check
+     what
+     result-c-comment  ; TODO: Better help.
+     (lambda (state)
+       (c-define-boolean!
+        state
+        result-scheme-name
+        result-c-name
+        result-c-comment
+        (run-c-preprocessor
+         (string-append "#include <" in-angle-brackets ">")))))))
+
+(define (make-check-for-c-ifdef what
+                                result-scheme-name
+                                result-c-name
+                                result-c-comment
+                                c-ifdef-name)
+  (make-check
+   what
+   result-c-comment  ; TODO: Better help.
+   (lambda (state)
+     (c-define-boolean!
+      state
+      result-scheme-name
+      result-c-name
+      result-c-comment
+      (let* ((key "Found it")
+             (out (run-c-preprocessor
+                   (string-append "#ifdef " c-ifdef-name)
+                   key
+                   "#endif")))
+        (and out (string-contains out key)))))))
+
+;;;
 
 (define check-for-gnu-make
   (make-check
    "for GNU make"
    "Search all the common names for GNU make"
-   car-or-not-found
-   (lambda () (find-program-and-version
-               "--version" "GNU Make "
-               '("gmake" "make")))))
+   (find-program-and-version
+    'gnu-make
+    "--version"
+    "GNU Make "
+    '("gmake" "make"))))
 
 (define check-for-gcc
   (make-check
    "for gcc"
    "Search for the GNU Compiler Collection"
-   car-or-not-found
-   (lambda () (find-program-and-version
-               "--version" "gcc-10 "
-               (cons "cc" (command-and-versions "gcc" '("10")))))))
+   (find-program-and-version
+    'gcc
+    "--version"
+    "gcc-10 "
+    (cons "cc" (command-and-versions "gcc" '("10"))))))
 
 (define check-for-guile
   (make-check
    "for Guile"
    "Search for GNU Guile"
-   car-or-not-found
-   (lambda () (find-program-and-version
-               "--version" "guile (GNU Guile)"
-               (command-and-versions "guile" '("2.2" "2.0" "1.8"))))))
-
-;; (define (ac-define variable-name true-value help) #f)
-;;
-;; (when (string-contains out key)
-;;   (ac-define "HAVE_INT128" "1" "Define to 1 if you have the type __int128."))
-
-(define (run-c-preprocessor . lines)
-  (let ((temp-file-name "configure-temp.c"))
-    (with-output-to-file temp-file-name
-      (lambda () (for-each write-line lines)))
-    (all-output-from-command "cc" "-E" temp-file-name)))
+   (find-program-and-version
+    'guile
+    "--version"
+    "guile (GNU Guile)"
+    (command-and-versions "guile" '("2.2" "2.0" "1.8")))))
 
 (define check-for-c-int128
-  (make-check
+  (make-check-for-c-ifdef
    "for __int128"
-   "Check for __int128"
-   boolean-as-yes-or-no
-   (lambda ()
-     (let* ((key "Found it")
-            (out (run-c-preprocessor
-                  "#ifdef __SIZEOF_INT128__"
-                  key
-                  "#endif")))
-       (not (not (string-contains out key)))))))
+   'have-int128?
+   "HAVE_INT128"
+   "Define to 1 if you have the __int128 type."
+   "__SIZEOF_INT128__"))
+
+;;;
+
+(define wanted-checks
+  (append (list check-for-gnu-make
+                check-for-gcc
+                check-for-guile
+                check-for-c-int128)
+          (map make-check-for-c-header
+               '("time.h"
+                 "sys/time.h"
+                 "sys/types.h"
+                 "nonexistent.h"
+                 "glob.h"
+                 "dlfcn.h"
+                 "getopt.h"
+                 "sched.h"))
+          (map make-check-for-c-sizeof
+               '("int"
+                 "long"
+                 "intptr_t"
+                 "off_t"
+                 "nonexistent_t"
+                 "long long"))))
+
+(define (write-config-h state)
+  (let* ((pair (assoc 'config-h-lines state))
+         (lines (if pair (cdr pair) '())))
+    (with-output-to-file "config.h"
+      (lambda () (for-each write-line lines)))))
 
 (define (configure args)
   (let ((state (parse-args args)))
@@ -359,10 +534,8 @@
           ((assoc 'version state)
            (version))
           (else
-           (run-check check-for-gnu-make)
-           (run-check check-for-gcc)
-           (run-check check-for-guile)
-           (run-check check-for-c-int128)
+           (let ((state (fold run-check '() wanted-checks)))
+             (write-config-h state))
            (write-makefile)
            (write-config-status)))))
 
