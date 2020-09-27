@@ -33,6 +33,9 @@
           let
           let*
           list
+          list-ref
+          make-string
+          map
           max
           member
           min
@@ -42,11 +45,14 @@
           or
           parameterize
           quote
+          reverse
           string-append
           string-length
           string-ref
           string=?
+          string?
           substring
+          symbol?
           with-output-to-file
           write-string
 

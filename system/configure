@@ -7,6 +7,15 @@
        (if (match? (car lis)) (car lis)
            (find match? (cdr lis)))))
 
+(define (fold combine state lis)
+  (let loop ((state state) (lis lis))
+    (if (null? lis) state (loop (combine state (car lis)) (cdr lis)))))
+
+(define (filter match? lis)
+  (reverse (fold (lambda (newlis elt)
+                   (if (match? elt) (cons elt newlis) newlis))
+                 '() lis)))
+
 (define (string-index s char)
   (let ((n (string-length s)))
     (let loop ((i 0))
@@ -46,7 +55,49 @@
                     (string-length version-prefix)
                     (string-length line)))))
 
-;; Subroutines
+;; Option parsing
+
+(define available-options
+  '((("--help" "-h") #f "Show help")
+    (("--version" "-V") #f "Show version")
+
+    ;;
+
+    (("--bindir")         directory "")
+    (("--datadir")        directory "")
+    (("--datarootdir")    directory "")
+    (("--docdir")         directory "")
+    (("--dvidir")         directory "")
+    (("--exec-prefix")    directory "")
+    (("--htmldir")        directory "")
+    (("--includedir")     directory "")
+    (("--infodir")        directory "")
+    (("--libdir")         directory "")
+    (("--libexecdir")     directory "")
+    (("--localedir")      directory "")
+    (("--localstatedir")  directory "")
+    (("--mandir")         directory "")
+    (("--oldincludedir")  directory "")
+    (("--pdfdir")         directory "")
+    (("--prefix")         directory "")
+    (("--psdir")          directory "")
+    (("--runstatedir")    directory "")
+    (("--sbindir")        directory "")
+    (("--sharedstatedir") directory "aa")
+    (("--sysconfdir")     directory "")
+
+    ;;
+
+    (("--srcdir")         directory "")))
+
+(define (option-names    option) (list-ref option 0))
+(define (option-argument option) (list-ref option 1))
+(define (option-helpline option) (list-ref option 2))
+
+(define (option-by-name name)
+  (or (and (find (lambda (option) (member name (car option)))
+                 available-options))
+      (error "No such option" name)))
 
 (define (fatal message)
   (write-string message (current-error-port))
@@ -69,57 +120,21 @@
     (disp)
     (disp "Defaults for the options are specified in brackets.")
     (disp)
-    (disp "Configuration:")
-    (disp "-h, --help")
+    (disp "Options:")
+    (let* ((lines (map (lambda (option)
+                         (cons (string-join (option-names option) "|")
+                               (option-helpline option)))
+                       available-options))
+           (maxlen (fold max 0 (map string-length (map car lines)))))
+      (for-each (lambda (line)
+                  (let* ((gaplen (+ 3 (- maxlen (string-length (car line)))))
+                         (gap (make-string gaplen #\space)))
+                    (disp (car line) gap (cdr line))))
+                lines))
     (exit which-exit)))
 
 (define (usage) (generic-usage #f (current-error-port)))
 (define (successful-usage) (generic-usage #t (current-output-port)))
-
-;; Option parsing
-
-(define available-options
-  '(("-h")
-    ("-V")
-    ("--help")
-    ("--version")
-
-    ;;
-
-    ("--bindir"         "directory")
-    ("--datadir"        "directory")
-    ("--datarootdir"    "directory")
-    ("--docdir"         "directory")
-    ("--dvidir"         "directory")
-    ("--exec-prefix"    "directory")
-    ("--htmldir"        "directory")
-    ("--includedir"     "directory")
-    ("--infodir"        "directory")
-    ("--libdir"         "directory")
-    ("--libexecdir"     "directory")
-    ("--localedir"      "directory")
-    ("--localstatedir"  "directory")
-    ("--mandir"         "directory")
-    ("--oldincludedir"  "directory")
-    ("--pdfdir"         "directory")
-    ("--prefix"         "directory")
-    ("--psdir"          "directory")
-    ("--runstatedir"    "directory")
-    ("--sbindir"        "directory")
-    ("--sharedstatedir" "directory")
-    ("--sysconfdir"     "directory")
-
-    ;;
-
-    ("--srcdir"         "directory")))
-
-(define (option-by-name name)
-  (or (assoc name available-options)
-      (error "No such option" name)))
-
-(define (option-argument option)
-  (and (not (null? (cdr option)))
-       (cadr option)))
 
 (define (how-many-dashes s)
   (let ((n (min 3 (string-length s))))
