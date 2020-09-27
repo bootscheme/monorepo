@@ -1,4 +1,4 @@
-(define-library (bootscheme)
+(define-library (bootscheme 2020)
   (export + - * /
           < > <= >= =
 
@@ -46,6 +46,7 @@
           parameterize
           quote
           reverse
+          string
           string-append
           string-length
           string-ref
@@ -54,6 +55,7 @@
           substring
           symbol?
           with-output-to-file
+          write
           write-string
 
           ;;
@@ -72,15 +74,40 @@
           (scheme read)
           (scheme write))
 
+  (begin
+    (define (string-first-line s)
+      (let loop ((i 0))
+        (cond ((= i (string-length s)) s)
+              ((char=? #\newline (string-ref s i)) (substring s 0 i))
+              (else (loop (+ i 1)))))))
+
   (cond-expand
+    (chibi
+     (import (srfi 193))
+     (import (chibi process))
+     (begin
+       (define (first-line-from-command command . args)
+         (string-first-line
+          (process->string (cons command args))))))
     (gambit
      (import (gambit))
      (begin
+       (define (command-name)
+         (let ((name (car (command-line))))
+           (and name (path-strip-extension (path-strip-directory name)))))
+       (define (command-args) (cdr (command-line)))
        (define (first-line-from-command command . args)
-         (let* ((process (start-process command args))
-                (line (read-line process))
-                (status (wait-for-process process)))
-           (and (exit-success? status) line)))))
+         (let* ((p (with-exception-handler (lambda (err) #f)
+                     (lambda ()
+                       (open-process
+                        (list (string->keyword "path") command
+                              (string->keyword "arguments") args
+                              (string->keyword "stdout-redirection") #t))))))
+           (and p
+                (let ((line (read-line p)))
+                  (close-port p)
+                  (and (equal? 0 (process-status p))
+                       line)))))))
     (gauche
      (import (srfi 13) (srfi 193))
      (import (gauche base) (gauche process))
@@ -90,8 +117,5 @@
                                (make-keyword 'redirects)
                                `((> 1 out) (> 2 ,(make-keyword 'null))))))
            (and (process-wait p)
-                (let* ((out (port->string (process-output p 'out)))
-                       (end (string-index out #\newline)))
-                  (if end
-                      (substring out 0 end)
-                      (string-append out (string #\newline)))))))))))
+                (string-first-line
+                 (port->string (process-output p 'out))))))))))

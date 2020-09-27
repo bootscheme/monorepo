@@ -1,4 +1,6 @@
-(import (bootscheme))
+#!
+
+(import (bootscheme 2020))
 
 ;; Utilities
 
@@ -42,6 +44,10 @@
 
 (define (acons key val alist)
   (cons (cons key val) alist))
+
+(define (writeln x)
+  (write x)
+  (newline))
 
 (define (disp . xs)
   (for-each display xs)
@@ -241,10 +247,11 @@
                "installdirs")))
         (disp ".PHONY: " (string-join phony-targets " "))))))
 
-(define (find-srcdir)
+(define (find-srcdir srcdir-option)
+  (define (dir-contains-sources? dir)
+    #f)
   (or (find dir-contains-sources?
-            (let ((dirname (option-value srcdir)))
-              (if dirname (list dirname) (list "." ".."))))
+            (if srcdir-option (list srcdir-option) (list "." "..")))
       (error "cannot find the sources")))
 
 (define progname "Gambit")
@@ -260,15 +267,18 @@
                  (cons command version)
                  (loop (cdr candidates))))))))
 
-(let ((state (parse-args (command-args))))
-  (cond ((assoc 'help state)
-         (successful-usage))
-        ((assoc 'version state)
-         (version))
-        (else
-         (disp (command-name))
-         (disp (command-args))
-         (disp state)
-         (disp (check-gnu-make))
-         (write-makefile)
-         (write-config-status))))
+(define (main)
+  (let ((state (parse-args (command-args))))
+    (cond ((assoc 'help state)
+           (successful-usage))
+          ((assoc 'version state)
+           (version))
+          (else
+           (writeln (command-name))
+           (writeln (command-args))
+           (writeln state)
+           (writeln (check-gnu-make))
+           (write-makefile)
+           (write-config-status)))))
+
+(main)
