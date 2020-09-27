@@ -307,8 +307,8 @@
                                         '("cc" "gcc" "gcc-10")
                                         "--version"))))
 
-(define (main)
-  (let ((state (parse-args (command-args))))
+(define (configure args)
+  (let ((state (parse-args args)))
     (cond ((assoc 'help state)
            (successful-usage))
           ((assoc 'version state)
@@ -318,5 +318,18 @@
            (run-check check-for-gcc)
            (write-makefile)
            (write-config-status)))))
+
+(define (make args)
+  #f)
+
+(define (which-command)
+  (let ((name (command-name)))
+    (cond ((equal? name "configure") configure)
+          ((equal? name "make") make)
+          (else (error "Unknown command" name)))))
+
+(define (main)
+  (let ((command (which-command)))
+    (command (command-args))))
 
 (main)
