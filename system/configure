@@ -262,6 +262,11 @@
 (define progname "Gambit")
 (define progvers "4.9.3")
 
+(define (get-envars-for-c)
+  (list (cons 'cc (get-environment-variable "CC"))
+        (cons 'cflags (get-environment-variable "CFLAGS"))
+        (cons 'ldflags (get-environment-variable "LDFLAGS"))))
+
 (define (make-check what help written thunk)
   (list what help written thunk))
 
@@ -280,32 +285,72 @@
     (newline)
     value))
 
-(define (find-program-and-version prefix commands version-flag)
+(define (find-program-and-version version-flag prefix commands)
   (find-value (lambda (command)
                 (let ((version (parse-version-line-from-command
                                 prefix command version-flag)))
                   (and version (cons command version))))
               commands))
 
+(define (command-and-versions command versions)
+  (cons command
+        (map (lambda (version) (string-append command "-" version))
+             versions)))
+
+(define (or-not-found value) (or value "not found"))
 (define (car-or-not-found value) (if value (car value) "not found"))
+(define (boolean-as-yes-or-no value) (if value "yes" "no"))
 
 (define check-for-gnu-make
   (make-check
    "for GNU make"
    "Search all the common names for GNU make"
    car-or-not-found
-   (lambda () (find-program-and-version "GNU Make "
-                                        '("gmake" "make")
-                                        "--version"))))
+   (lambda () (find-program-and-version
+               "--version" "GNU Make "
+               '("gmake" "make")))))
 
 (define check-for-gcc
   (make-check
    "for gcc"
    "Search for the GNU Compiler Collection"
    car-or-not-found
-   (lambda () (find-program-and-version "gcc-10 "
-                                        '("cc" "gcc" "gcc-10")
-                                        "--version"))))
+   (lambda () (find-program-and-version
+               "--version" "gcc-10 "
+               (cons "cc" (command-and-versions "gcc" '("10")))))))
+
+(define check-for-guile
+  (make-check
+   "for Guile"
+   "Search for GNU Guile"
+   car-or-not-found
+   (lambda () (find-program-and-version
+               "--version" "guile (GNU Guile)"
+               (command-and-versions "guile" '("2.2" "2.0" "1.8"))))))
+
+;; (define (ac-define variable-name true-value help) #f)
+;;
+;; (when (string-contains out key)
+;;   (ac-define "HAVE_INT128" "1" "Define to 1 if you have the type __int128."))
+
+(define (run-c-preprocessor . lines)
+  (let ((temp-file-name "configure-temp.c"))
+    (with-output-to-file temp-file-name
+      (lambda () (for-each write-line lines)))
+    (all-output-from-command "cc" "-E" temp-file-name)))
+
+(define check-for-c-int128
+  (make-check
+   "for __int128"
+   "Check for __int128"
+   boolean-as-yes-or-no
+   (lambda ()
+     (let* ((key "Found it")
+            (out (run-c-preprocessor
+                  "#ifdef __SIZEOF_INT128__"
+                  key
+                  "#endif")))
+       (not (not (string-contains out key)))))))
 
 (define (configure args)
   (let ((state (parse-args args)))
@@ -316,6 +361,8 @@
           (else
            (run-check check-for-gnu-make)
            (run-check check-for-gcc)
+           (run-check check-for-guile)
+           (run-check check-for-c-int128)
            (write-makefile)
            (write-config-status)))))
 
