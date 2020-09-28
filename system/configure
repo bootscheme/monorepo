@@ -436,6 +436,23 @@
         (run-c-preprocessor
          (string-append "#include <" in-angle-brackets ">")))))))
 
+(define (make-check-for-c-program what
+                                  result-scheme-name
+                                  result-c-name
+                                  result-c-comment
+                                  c-program-lines)
+  (make-check
+   what
+   result-c-comment  ; TODO: Better help.
+   (lambda (state)
+     (c-define-boolean!
+      state
+      result-scheme-name
+      result-c-name
+      result-c-comment
+      (let ((out (apply run-c-program c-program-lines)))
+        (not (not out)))))))
+
 (define (make-check-for-c-ifdef what
                                 result-scheme-name
                                 result-c-name
@@ -497,13 +514,26 @@
    "Define to 1 if you have the __int128 type."
    "__SIZEOF_INT128__"))
 
+(define check-for-c-reallocarray
+  (make-check-for-c-program
+   "for reallocarray()"
+   'have-reallocarray?
+   "HAVE_REALLOCARRAY"
+   "Define to 1 if you have the reallocarray() function."
+   '("#include <stdlib.h>"
+     "int main(void) {"
+     "  void *p = reallocarray(0, 4, 4);"
+     "  return p ? 0 : 1;"
+     "}")))
+
 ;;;
 
 (define wanted-checks
   (append (list check-for-gnu-make
                 check-for-gcc
                 check-for-guile
-                check-for-c-int128)
+                check-for-c-int128
+                check-for-c-reallocarray)
           (map make-check-for-c-header
                '("time.h"
                  "sys/time.h"
